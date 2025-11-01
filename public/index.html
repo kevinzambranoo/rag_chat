@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RAG Chat - Cliente</title>
+  <style>
+    :root{
+      font-family: Inter, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      --bg:#f6f8fa; --card:#ffffff; --muted:#6b7280; --accent:#0b5fff;
+    }
+    body{ margin:0; padding:24px; background:var(--bg); color:#0f172a; }
+    .container{ max-width:880px; margin:0 auto; }
+    header{ display:flex; align-items:center; gap:16px; margin-bottom:18px; }
+    h1{ margin:0; font-size:20px; }
+    .card{ background:var(--card); border-radius:12px; padding:18px; box-shadow:0 6px 20px rgba(15,23,42,0.06);}
+    label{ display:block; font-size:13px; margin-bottom:6px; color:var(--muted); }
+    textarea{ width:100%; min-height:120px; resize:vertical; padding:12px; border-radius:8px; border:1px solid #e6e9ef; font-size:14px;}
+    input[type="file"]{ font-size:14px; }
+    .row{ display:flex; gap:12px; align-items:center; margin-top:12px; flex-wrap:wrap; }
+    button{ background:var(--accent); color:#fff; border:none; padding:10px 14px; border-radius:8px; cursor:pointer; font-weight:600;}
+    button[disabled]{ opacity:0.6; cursor:not-allowed; }
+    .response{ white-space:pre-wrap; margin-top:14px; padding:12px; border-radius:8px; background:#0f172a10; border:1px solid #e6e9ef; }
+    .meta{ font-size:13px; color:var(--muted); margin-top:8px; }
+    .error{ color:#b00020; margin-top:10px; font-weight:600; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>RAG Chat — Cliente</h1>
+      <div class="meta">Envía un mensaje y un archivo <code>.txt</code> como contexto</div>
+    </header>
+
+    <div class="card">
+      <form id="ragForm">
+        <div>
+          <label for="message">Mensaje</label>
+          <textarea id="message" name="message" placeholder="Escribe tu pregunta aquí..." required></textarea>
+        </div>
+
+        <div style="margin-top:12px;">
+          <label for="file">Archivo (.txt)</label>
+          <input id="file" name="file" type="file" accept=".txt" />
+        </div>
+
+        <div class="row">
+          <button id="submitBtn" type="submit">Enviar</button>
+          <div id="status" class="meta" aria-live="polite"></div>
+        </div>
+
+        <div id="error" class="error" role="alert" style="display:none;"></div>
+
+        <div id="result" class="response" style="display:none;"></div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const form = document.getElementById('ragForm');
+      const submitBtn = document.getElementById('submitBtn');
+      const statusEl = document.getElementById('status');
+      const resultEl = document.getElementById('result');
+      const errorEl = document.getElementById('error');
+
+      // Ajusta la URL si tu backend está en otro host/puerto
+      const ENDPOINT = '/rag-chat/rag-chat';
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorEl.style.display = 'none';
+        resultEl.style.display = 'none';
+        statusEl.textContent = 'Preparando petición...';
+
+        const message = document.getElementById('message').value.trim();
+        const fileInput = document.getElementById('file');
+
+        if (!message) {
+          errorEl.textContent = 'El campo mensaje es obligatorio.';
+          errorEl.style.display = 'block';
+          statusEl.textContent = '';
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('message', message);
+
+        if (fileInput.files.length > 0) {
+          formData.append('file', fileInput.files[0]);
+        }
+
+        submitBtn.disabled = true;
+        statusEl.textContent = 'Enviando...';
+
+        try {
+          const resp = await fetch(ENDPOINT, {
+            method: 'POST',
+            body: formData
+            // No establecer headers: fetch rellenará multipart/form-data correctamente
+          });
+
+          if (!resp.ok) {
+            const text = await resp.text();
+            throw new Error(`HTTP ${resp.status} — ${text}`);
+          }
+
+          const data = await resp.json();
+
+          // Esperamos que tu endpoint devuelva: { "response": "<texto>" }
+          if (data && typeof data.response !== 'undefined') {
+            resultEl.textContent = data.response;
+            resultEl.style.display = 'block';
+            statusEl.textContent = 'Respuesta recibida';
+          } else {
+            throw new Error('Formato de respuesta inesperado del servidor.');
+          }
+
+        } catch (err) {
+          console.error(err);
+          errorEl.textContent = 'Error: ' + (err.message || 'No se pudo conectar al servidor.');
+          errorEl.style.display = 'block';
+          statusEl.textContent = '';
+        } finally {
+          submitBtn.disabled = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
